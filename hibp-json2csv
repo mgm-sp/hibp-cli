@@ -1,0 +1,111 @@
+#!/usr/bin/ruby
+
+require "json"
+require "pp"
+require "csv"
+require "time"
+
+#### Options {{{
+require "ostruct"
+require "optparse"
+$options = OpenStruct.new
+$options.output = 'all-domain-breaches.csv'
+$options.outputformat = 'human'
+$options.breaches = 'known-hibp-breaches.json'
+
+optparse = OptionParser.new { |opts|
+	opts.banner = "Usage: #{File.basename($0)} [$options] <breacheddomain.json>"
+	opts.separator "Combines several json files obtained from haveibeenpwned for futher examination"
+	opts.separator "If csv file exists, no head is written, csv is appended"
+	opts.separator "Options:"
+
+	opts.on("--domain domain", "specify a certain domain which is added to the username"){|d| $options.domain = "@#{d}"}
+	opts.on("--outputformat (human|csv)","defaults to #{$options.outputformat}")
+	opts.on("--output file", "output file","defaults to #{$options.output}")
+	opts.on("--breaches FILE", "breaches file","defaults to #{$options.breaches}")
+	opts.on("-h", "--help", "show this message") {
+		puts opts
+		exit
+	}
+}
+
+begin
+	optparse.parse!(into: $options)
+rescue => e
+	puts optparse
+	raise e
+end
+
+if ARGV.length != 1
+	puts optparse
+	exit
+else
+	$options.input=ARGV[0]
+end
+
+#}}}
+
+#### {{{ populate known breaches
+unless File.exists?($options.breaches)
+	puts "Please ensure that #{$options.breaches} exists"
+	exit
+end
+breaches = {}
+JSON.parse(File.open($options.breaches).read).collect{|e|
+	["BreachDate","AddedDate","ModifiedDate"].each{|d|
+		e[d] = Time.parse(e[d]).strftime("%F")
+	}
+	e
+}.each{|b|
+	if breaches[b["Name"]]
+		puts "error: #{b["Name"]} is twice"
+		exit
+	end
+	breaches[b["Name"]] = b
+}
+#}}}
+
+#### parse file {{{
+searchResults = JSON.parse(File.open($options.input).read)
+if searchResults.class != Hash
+	exit
+end
+output = []
+head = ["User","Name","Title","BreachDate","AddedDate","ModifiedDate","DataClasses"]
+searchResults.each{|user,user_breaches|
+	user_breaches.each{|b|
+		o = ["#{user}#{$options.domain}"]
+		head[1..-1].each{|k|
+			o << breaches[b][k]
+		}
+		output << o
+	}
+}
+#}}}
+
+case $options.outputformat
+when "human"
+	require "terminal-table"
+	puts Terminal::Table.new(
+		#:style => { :border => :markdown },
+		:headings => head,
+		:rows => output
+	)
+when "csv"
+	if !File.exists?($options.output)
+		File.open($options.output,"w"){|f|
+			f << head.to_csv(:col_sep => ";")
+		}
+		puts "Written to file #{$options.output}"
+	else
+		puts "Append to file #{$options.output}"
+	end
+	File.open($options.output,"a"){|f|
+		output.each{|line|
+			f << line.to_csv(:col_sep => ";")
+		}
+	}
+else
+	puts "Unknown output format"
+	exit 1
+end

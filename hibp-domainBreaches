@@ -1,0 +1,38 @@
+#!/bin/sh
+
+usage(){
+	echo "usage: $(basename "$0") <output.csv>"
+	exit 1
+}
+
+case $# in
+	1)
+		TARGET=$1
+		;;
+	*)
+		echo "Wrong number of arguments"
+		usage
+		;;
+esac
+
+if [ -f "$TARGET" ];then
+	echo "The file $TARGET already exists!"
+	exit
+fi
+
+TMPDIR=$(mktemp --directory)
+CURDIR=$(pwd)
+cd "$TMPDIR" || exit 1
+# fetch all breaches
+hibp request breaches > known-hibp-breaches.json
+
+for d in $(hibp request subscribeddomains| jq -r ".[] | [.DomainName] |join(\",\")")
+do
+	echo "Fetching for $d..."
+	# fetch new breaches for your domain
+	hibp request breacheddomain "$d" > breached-"$d".json
+	# transform everything to csv
+	hibp json2csv --outputformat csv --domain "$d" --output "$TARGET" breached-"$d".json
+done
+mv "$TARGET" "$CURDIR/"
+rm -r "$TMPDIR"

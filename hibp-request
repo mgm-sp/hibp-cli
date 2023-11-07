@@ -1,0 +1,25 @@
+#!/bin/sh
+
+
+usage(){
+	C="$(basename "$0"|sed 's/-/ /g')"
+	echo "usage: $C <ARGs>"
+	echo
+	echo "queries the HIBP-API (see https://haveibeenpwned.com/API/v3)"
+	echo "e.g.:"
+	echo "$C breachedaccount somebody@example.org"
+	echo "$C breacheddomain example.org"
+	echo "$C breaches"
+	echo "$C subscribeddomains"
+	exit 1
+}
+
+if [ $# -eq 0 ];then
+	usage
+fi
+
+API=$(echo "$@"|sed 's# #/#')
+curl -s "https://haveibeenpwned.com/api/v3/$API" \
+	--user-agent "hibp-cli/v3"\
+	-H "hibp-api-key: $API_KEY"
+

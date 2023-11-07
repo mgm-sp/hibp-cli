@@ -1,0 +1,23 @@
+#!/bin/sh
+
+cat <<HELP
+Got an e-mail about a breach and don't know what to do?
+tl;dr:
+hibp domainBreaches out.csv
+excel out.csv
+
+Long explaination:
+# fetch all breaches
+hibp request breaches > known-hibp-breaches.json
+
+# fetch new breaches for your domain
+hibp request breacheddomain example.org > b1.json
+# transform everything to csv
+hibp json2csv --outputformat csv --output out.csv --domain example.org b1.json
+
+# (possibly repeat this for other domains)
+hibp request breacheddomain example.com > b2.json
+hibp json2csv --outputformat csv --output out.csv --domain example.com b2.json
+
+-> investigate out.csv with your favorite csv-tool
+HELP
